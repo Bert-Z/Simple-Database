@@ -90,12 +90,25 @@ class bptree
         file_reopen();
     };
 
-    key_t *nthk_b(buffer_p b, size_t n){
-        
+    key_t *nthk_b(buffer_p b, size_t n)
+    {
+        return (key_t *)(b + (sizeof(key_t) + sizeof(value_t)) * n);
     };
-    value_t *nthv_b(buffer_p b, size_t n);
-    key_t *nthk_t(buffer_p b, size_t n);
-    off_t *nthc_t(buffer_p b, size_t n);
+
+    value_t *nthv_b(buffer_p b, size_t n)
+    {
+        return (value_t *)(b + (sizeof(key_t) + sizeof(value_t)) * n + sizeof(key_t));
+    };
+
+    key_t *nthk_t(buffer_p b, size_t n)
+    {
+        return (key_t *)(b + (sizeof(off_t) + sizeof(key_t)) * n);
+    };
+
+    off_t *nthc_t(buffer_p b, size_t n)
+    {
+        return (off_t *)(b + (sizeof(off_t) + sizeof(key_t)) * n + sizeof(key_t));
+    };
 
     node read_node(off_t p)
     {
@@ -112,14 +125,113 @@ class bptree
         return alloc.alloc(node_size);
     };
 
-    node new_tnode();
-    node new_block();
-    size_t bsearch_t(buffer_p b, key_t k, size_t n);
-    void buf_insert_t(buffer_p b, key_t k, off_t v, node &p);
-    size_t bsearch_b(buffer_p b, key_t k, size_t n);
-    void buf_insert_b(buffer_p b, key_t k, size_t n);
-    void buf_remove_b(buffer_p b, key_t k, node &p);
-    node buf_split_b(buffer_p b, node &p);
+    node new_tnode(key_t key, off_t father = invalid_off, off_t prev = invalid_off, off_t next = invalid_off, size_t sz = 0)
+    {
+        off_t pos = new_node();
+        return node(key, pos, father, prev, next, sz, 0);
+    };
+
+    node new_block(key_t key, off_t father = invalid_off, off_t prev = invalid_off, off_t next = invalid_off, size_t sz = 0)
+    {
+        off_t pos = new_node();
+        return node(key, pos, father, prev, next, sz, 1);
+    };
+
+    size_t bsearch_t(buffer_p b, key_t k, size_t n)
+    {
+        size_t l = 0, r = n, mid;
+        key_t *t;
+
+        while (l < r)
+        {
+            mid = (l + r) / 2;
+            t = nthk_t(b, mid);
+            if (cmp(*t, k))
+            {
+                l = mid + 1;
+            }
+            else
+            {
+                r = mid;
+            }
+        }
+        return l;
+    };
+
+    void buf_insert_t(buffer_p b, key_t k, off_t v, node &p)
+    {
+        size_t i, x = bsearch_t(b, k, p.sz);
+        if (x < p.sz && equal(k, *nthk_t(b, x)))
+            return;
+        for (i = p.sz; i > x; --i)
+        {
+            *nthk_t(b, i) = *nthk_t(b, i - 1);
+            *nthc_t(b, i) = *nthc_t(b, i - 1);
+        }
+        *nthk_t(b, x) = k;
+        *nthc_t(b, x) = v;
+        p.sz++;
+        p.key = *nthk_t(b, 0);
+    };
+
+    size_t bsearch_b(buffer_p b, key_t k, size_t n)
+    {
+        size_t l = 0, r = n, mid;
+        key_t *t;
+
+        while (l < r)
+        {
+            mid = (l + r) / 2;
+            t = nthk_b(b, mid);
+            if (cmp(*t, k))
+            {
+                l = mid + 1;
+            }
+            else
+            {
+                r = mid;
+            }
+        }
+        return l;
+    };
+
+    void buf_insert_b(buffer_p b, key_t k, off_t v, node &p)
+    {
+        size_t i, x = bsearch_b(b, k, p.sz);
+        if (x < p.sz && equal(k, *nthk_b(b, x)))
+            return;
+        for (i = p.sz; i > x; --i)
+        {
+            *nthk_b(b, i) = *nthk_b(b, i - 1);
+            *nthv_b(b, i) = *nthv_b(b, i - 1);
+        }
+        *nthk_b(b, x) = k;
+        *nthv_b(b, x) = v;
+        p.sz++;
+        p.key = *nthk_b(b, 0);
+    };
+
+    void buf_remove_b(buffer_p b, key_t k, node &p)
+    {
+        size_t i, x = bsearch_b(b, k, p.sz);
+        if (x == p.sz || !equal(*nthk_b(b, x), k))
+        {
+            cout << "Can't find!" << endl;
+            return;
+        }
+
+        for (i = x; i < p.sz - 1; ++i)
+        {
+            *nthk_b(b, i) = *nthk_b(b, i + 1);
+            *nthv_b(b, i) = *nthv_b(b, i + 1);
+        }
+        --p.sz;
+        p.key = *nthk_b(b, 0);
+    };
+
+    node buf_split_b(buffer_p b, node &p){
+
+    };
     node _insert_b(node &p, key_t k, value_t v);
     node _insert_t(node &p, key_t k, off_t v);
 
