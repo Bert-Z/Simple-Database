@@ -1,5 +1,4 @@
 #include "alloc.h"
-#include <fstream>
 
 void file_alloc::delete_node(node *p)
 {
@@ -72,8 +71,7 @@ void file_alloc::load(const string filename)
 {
     clear();
 
-    fstream file;
-    file.open(filename, ios::binary);
+    fstream file(filename, ios::in);
     if (!file)
     {
         cout << "File open wrong!" << endl;
@@ -87,6 +85,10 @@ void file_alloc::load(const string filename)
     while (!file.eof())
     {
         file.read(reinterpret_cast<char *>(&nstart), sizeof(off_t));
+
+        if (file.gcount() == 0) //得到实际读取的值，判断是否到结尾
+            break;
+
         file.read(reinterpret_cast<char *>(&nend), sizeof(off_t));
 
         insert_tail(nstart, nend);
@@ -98,7 +100,7 @@ void file_alloc::load(const string filename)
 void file_alloc::dump(const string filename)
 {
     fstream file;
-    file.open(filename, ios::binary);
+    file.open(filename, ios::out);
 
     file.write(reinterpret_cast<char *>(&fileend), sizeof(off_t));
 
@@ -183,3 +185,21 @@ void file_alloc::free(off_t pos, size_t len)
     merge(q);
     return;
 }
+
+// int main()
+// {
+//     file_alloc newtry;
+//     newtry.load("data");
+
+//     cout << "first" << endl;
+//     newtry.print();
+
+//     newtry.clear();
+
+//     cout << "second" << endl;
+//     newtry.dump("data");
+//     newtry.print();
+//     system("pause");
+
+//     return 0;
+// }
