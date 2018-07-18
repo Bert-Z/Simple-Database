@@ -229,11 +229,77 @@ class bptree
         p.key = *nthk_b(b, 0);
     };
 
-    node buf_split_b(buffer_p b, node &p){
-
+    node buf_split_b(buffer_p b, node &p)
+    {
+        size_t len1 = p.sz / 2, len2 = p.sz - len1;
+        char *nb = (char *)nthk_b(b, len1);
+        key_t nk = nthk_b(b, len1);
+        node q = new_block(nk, p.father, p.pos, p.next);
+        q.sz = len2;
+        p.sz = len1;
+        p.next = q.pos;
+        save_node(q);
+        buf_save_b(nb, q);
+        save_node(p);
+        buf_save_b(b, p);
+        if (tail == p.pos)
+        {
+            tail = q.pos;
+            save_info();
+        }
+        if (q.next != invalid_off)
+        {
+            node qn = read_node(q.next);
+            qn.prev = q.pos;
+            save_node(qn);
+        }
+        return q;
     };
-    node _insert_b(node &p, key_t k, value_t v);
-    node _insert_t(node &p, key_t k, off_t v);
+
+    node buf_split_t(buffer_p b, node &p)
+    {
+        size_t len1 = p.sz / 2, len2 = p.sz - len1;
+        char *nb = (char *)nthk_t(b, len1);
+        key_t nk = nthk_t(b, len1);
+        node q = new_tnode(nk, p.father);
+        q.sz = len2;
+        p.sz = len1;
+        save_node(q);
+        buf_save_t(nb, q);
+        save_node(p);
+        buf_save_t(b, p);
+        return q;
+    };
+
+    node _insert_b(node &p, key_t k, value_t v)
+    {
+        buffer_t b;
+        buf_load_b(b, p);
+        buf_insert_b(b, k, v, p);
+        key_t rk = *nthk_b(b, 0);
+        p.key = rk;
+        save_node(p);
+        if (p.sz > block_max)
+        {
+            node q = buf_split_b(b, p);
+            return q;
+        }
+
+        buf_save_b(b, p);
+        return p;
+    };
+
+    node _insert_t(node &p, key_t k, off_t v)
+    {
+        buffer_t b;
+        buf_load_t(b, p);
+        buf_insert_t(b, k, v, p);
+        key_t rk = *nthk_t(b, 0);
+        p.key = rk;
+        save_node(p);
+        buf_save_t(b, p);
+        return p;
+    };
 
     void save_info()
     {
@@ -253,7 +319,59 @@ class bptree
         file.read(reinterpret_cast<char *>(&root), sizeof(off_t));
     };
 
-    node _insert(node &p, const key_t &k, const value_t &v);
+    node _insert(node &p, const key_t &k, const value_t &v)
+    {
+        size_t x;
+        node result, q;
+        if (p.type)
+        {
+            result = _insert_b(p, k, v);
+            return result;
+        }
+
+        buffer_t bu;
+        buf_load_t(bu, p);
+        x = bsearch_t(bu, k, p.sz);
+
+        if (!equal(*nthk_t(bu, x), k) || x >= p.sz)
+        {
+            if (x > 0)
+                --x;
+            else
+            {
+                *nthk_t(bu, 0) = k;
+                p.key = k;
+                file.seekp(p.pos + sizeof(node), ios::beg);
+                file.write(reinterpret_cast<char *>(&k), sizeof(key_t));
+                file_reopen();
+            }
+        }
+
+        q = read_node(*nthc_t(bu, x));
+        result = _insert(q, k, v);
+        if (result.pos != q.pos)
+        {
+            buf_insert_t(bu, result.key, result.pos, p);
+        }
+        save_node(p);
+        buf_save_t(bu, p);
+        if (p.sz > tnode_max)
+        {
+            node q = buf_split_t(bu, p);
+            if (root == p.pos)
+            {
+                node new_root = new_tnode(p.key);
+                p.father = q.father = new_root.pos;
+                root = new_root.pos;
+                _insert_t(new_root, p.key, p.pos);
+                _insert_t(new_root, q.key, q.pos);
+                save_info();
+            }
+            return q;
+        }
+        return p;
+    };
+    
     value_t _find(node &p, const key_t &k, const value_t &d = value_t());
 
     int _count(node &p, const key_t &k)
