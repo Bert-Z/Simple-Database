@@ -371,8 +371,24 @@ class bptree
         }
         return p;
     };
-    
-    value_t _find(node &p, const key_t &k, const value_t &d = value_t());
+
+    value_t _find(node &p, const key_t &k, const value_t &d = value_t())
+    {
+        if (cmp(k, p.key))
+        {
+            return d;
+        }
+        if (p.type)
+        {
+            buffer_t b;
+            buf_load_b(b, p);
+            size_t x = bsearch_b(b, k, p.sz);
+            if (x < p.sz && equal(*nthk_b(b, x), k))
+                return *nthv_b(b, x);
+            else
+                return d;
+        }
+    };
 
     int _count(node &p, const key_t &k)
     {
@@ -400,17 +416,217 @@ class bptree
         return _count(cn, k);
     };
 
-    void _set(node &p, const key_t &k, const value_t &v);
-    void _balance_left_b(buffer_p b, node &p, node &l);
-    void _balance_right_b(buffer_p b, node &p, node &r);
-    void _merge_left_b(buffer_p b, node &p, node &l);
-    void _merge_right_b(buffer_p b, node &p, node &r);
-    int _balance_b(buffer_p b, node &p, off_t left, off_t right);
+    void _set(node &p, const key_t &k, const value_t &v)
+    {
+        if (cmp(k, p.key))
+        {
+            return;
+        }
+        if (p.type)
+        {
+            buffer_t b;
+            buf_load_b(b, p);
+            size_t x = bsearch_b(b, k, p.sz);
+            if (x < p.sz && equal(*nthk_b(b, x), k))
+            {
+                *nthv_b(b, x) = v;
+                buf_save_b(b, p);
+                return;
+            }
+            else
+            {
+                cout << "not found!" << endl;
+                return;
+            }
+        }
+        buffer_t b;
+        buf_load_t(b, p);
+        size_t x = bsearch_t(b, k, p.sz);
+        if (x >= p.sz || !equal(*nthk_t(b, x), k))
+            --x;
+        node cn = read_node(*nthc_t(b, x));
+        _set(cn, k, v);
+    };
+
+    void _balance_left_b(buffer_p b, node &p, node &l)
+    {
+        buffer_t bl;
+        buf_load_b(bl, l);
+
+        for (int i = p.sz; i > 0; --i)
+        {
+            *nthk_b(b, i) = *nthk_b(b, i - 1);
+            *nthv_b(b, i) = *nthv_b(b, i - 1);
+        }
+        *nthk_b(b, 0) = *nthk_b(bl, l.sz - 1);
+        *nthv_b(b, 0) = *nthv_b(bl, l.sz - 1);
+        p.key = *nthk_b(b, 0);
+        p.sz++;
+        l.sz--;
+        save_node(p);
+        buf_save_b(b, p);
+        save_node(l);
+        buf_save_b(bl, l);
+    };
+
+    void _balance_right_b(buffer_p b, node &p, node &r)
+    {
+        buffer_t br;
+        buf_load_b(br, r);
+        p.sz++;
+        *nthk_b(b, p.sz - 1) = *nthk_b(br, 0);
+        *nthv_b(b, p.sz - 1) = *nthv_b(br, 0);
+
+        for (int i = 0; i < r.sz - 1; ++i)
+        {
+            *nthk_b(b, i) = *nthk_b(b, i + 1);
+            *nthv_b(b, i) = *nthv_b(b, i + 1);
+        }
+
+        r.key = *nthk_b(br, 0);
+        r.sz--;
+        save_node(p);
+        buf_save_b(b, p);
+        save_node(r);
+        buf_save_b(br, r);
+    };
+
+    void _merge_left_b(buffer_p b, node &p, node &l)
+    {
+        buffer_t bl;
+        buf_load_b(bl, l);
+        l.sz += p.sz;
+        for (int i = 0; i < p.sz; ++i)
+        {
+            *nthk_b(bl, i + l.sz) = *nthk_b(b, i);
+            *nthv_b(bl, i + l.sz) = *nthv_b(b, i);
+        }
+        l.next = p.next;
+        if (p.next != invalid_off)
+        {
+            node nn = read_node(p.next);
+            nn.prev = l.pos;
+            save_node(nn);
+        }
+        free_node(p);
+        save_node(l);
+        buf_save_b(bl, l);
+    };
+
+    void _merge_right_b(buffer_p b, node &p, node &r)
+    {
+        buffer_t br;
+        buf_load_b(br, r);
+        p.sz += r.sz;
+        for (int i = 0; i < r.sz; ++i)
+        {
+            *nthk_b(b, i + p.sz) = *nthk_b(br, i);
+            *nthv_b(b, i + p.sz) = *nthv_b(br, i);
+        }
+        p.next = r.next;
+        if (r.next != invalid_off)
+        {
+            node nn = read_node(r.next);
+            nn.prev = p.pos;
+            save_node(nn);
+        }
+        free_node(r);
+        save_node(p);
+        buf_save_b(b, p);
+    };
+
+    void _balance_left_t(buffer_p b, node &p, node &l)
+    {
+        buffer_t bl;
+        buf_load_t(bl, l);
+
+        for (int i = 1; i <= p.sz; i++)
+        {
+            *nthk_t(b, i) = *nthk_t(b, i - 1);
+            *nthc_t(b, i) = *nthc_t(b, i - 1);
+        }
+        *nthk_t(b, 0) = *nthk_t(bl, l.sz - 1);
+        *nthc_t(b, 0) = *nthc_t(bl, l.sz - 1);
+        p.sz++;
+        l.sz--;
+        p.key = *nthk_t(b, 0);
+        save_node(l);
+        save_node(p);
+        buf_save_t(b, p);
+        buf_save_t(bl, l);
+    };
+
+    void _balance_right_t(buffer_p b, node &p, node &r)
+    {
+        buffer_t br;
+        buf_load_t(br, r);
+        p.sz++;
+        *nthk_t(b, p.sz - 1) = *nthk_t(br, 0);
+        *nthc_t(b, p.sz - 1) = *nthc_t(br, 0);
+
+        for (int i = 0; i < r.sz; i++)
+        {
+            *nthk_t(br, i) = *nthk_t(br, i + 1);
+            *nthc_t(br, i) = *nthc_t(br, i + 1);
+        }
+
+        r.sz--;
+        r.key = *nthk_t(br, 0);
+        save_node(r);
+        save_node(p);
+        buf_save_t(b, p);
+        buf_save_t(br, r);
+    };
+
+    void _merge_left_t(buffer_p b, node &p, node &l)
+    {
+        buffer_t bl;
+        buf_load_t(bl, l);
+        l.sz += p.sz;
+        for (int i = 0; i < p.sz; ++i)
+        {
+            *nthk_t(bl, i + l.sz) = *nthk_t(b, i);
+            *nthc_t(bl, i + l.sz) = *nthc_t(b, i);
+        }
+        l.next = p.next;
+        if (p.next != invalid_off)
+        {
+            node nn = read_node(p.next);
+            nn.prev = l.pos;
+            save_node(nn);
+        }
+        free_node(p);
+        save_node(l);
+        buf_save_t(bl, l);
+    };
+
+    void _merge_right_t(buffer_p b, node &p, node &r)
+    {
+        buffer_t br;
+        buf_load_t(br, r);
+        p.sz += r.sz;
+        for (int i = 0; i < r.sz; ++i)
+        {
+            *nthk_t(b, i + p.sz) = *nthk_t(br, i);
+            *nthc_t(b, i + p.sz) = *nthc_t(br, i);
+        }
+        p.next = r.next;
+        if (r.next != invalid_off)
+        {
+            node nn = read_node(r.next);
+            nn.prev = p.pos;
+            save_node(nn);
+        }
+        free_node(r);
+        save_node(p);
+        buf_save_t(b, p);
+    };
+
+    int _balance_b(buffer_p b, node &p, off_t left, off_t right){
+
+    };
+
     int _balance_t(buffer_p b, node &p, off_t left, off_t right);
-    void _balance_left_t(buffer_p b, node &p, node &l);
-    void _balance_right_t(buffer_p b, node &p, node &r);
-    void _merge_left_t(buffer_p b, node &p, node &l);
-    void _merge_right_t(buffer_p b, node &p, node &r);
     int _remove(node &p, const key_t &k, off_t left, off_t right);
     void _search(node &p, array_t &arr, const key_t &key, function<bool(const key_t &, const key_t &)> compar);
 
