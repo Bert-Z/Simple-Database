@@ -20,7 +20,7 @@ class bptree
     const size_t tnode_max;
     const size_t block_max;
     off_t head, tail, root;
-    Compare cmp = Compare();
+    Compare cmp = Compare(); //调用默认构造函数
     bool equal(const key_t &a, const key_t &b)
     {
         return !cmp(a, b) && !cmp(b, a);
@@ -687,12 +687,91 @@ class bptree
         return _count(rn, key);
     };
 
-    value_t find(const key_t &key, const value_t &d = value_t());
-    inline bool empty();
-    void set(const key_t &key, const value_t &v);
-    void insert(const key_t &key, const value_t &v);
-    void remove(const key_t &key);
-    inline void print_info();
-    void search(array_t &arr, const key_t &key, std::function<bool(const key_t &, const key_t &)> compar);
-    void traverse(std::function<void(const key_t &, const value_t &)> func);
+    value_t find(const key_t &key, const value_t &v = value_t())
+    {
+        if (root == invalid_off)
+        {
+            return v;
+        }
+        node rn = read_node(root);
+        return _find(rn, key, v);
+    };
+
+    inline bool empty()
+    {
+        return root == invalid_off;
+    };
+
+    void set(const key_t &key, const value_t &v)
+    {
+        node rn = read_node(root);
+        _set(rn, key, v);
+        return;
+    };
+
+    void insert(const key_t &key, const value_t &v)
+    {
+        if (empty())
+        {
+            node p = new_tnode(key);
+            node q = new_block(key, p.pos);
+            root = p.pos;
+            head = tail = q.pos;
+            save_info();
+            _insert_b(q, key, v);
+            _insert_t(p, key, v);
+            return;
+        }
+        node rn = read_node(root);
+        _insert(rn, key, v);
+    };
+
+    void remove(const key_t &key)
+    {
+        node rn = read_node(root);
+        _remove(rn, key);
+    };
+
+    inline void print_info()
+    {
+        cout << "node_cnt: " << this->sz << " key_size: " << sizeof(key_t) << " value_size: " << sizeof(value_t);
+        cout << "tnode_max: " << tnode_max << " block_max: " << block_max << endl;
+        cout << "file: " << this->filename << " index_file: " << this->index_file << endl;
+    };
+
+    void search(array_t &arr, const key_t &key, std::function<bool(const key_t &, const key_t &)> compar)
+    {
+        if (empty())
+            return;
+
+        node r = read_node(root); // read_node(root) is not a lvalue
+        _search(r, arr, key, compar);
+    };
+
+    void traverse(std::function<void(const key_t &, const value_t &)> func)
+    {
+        off_t p = head;
+
+        node q;
+
+        buffer_t b;
+
+        while (p != invalid_off)
+        {
+
+            q = read_node(p);
+
+            buf_load_b(b, q);
+
+            int i, j;
+
+            for (i = 0; i < q.sz; ++i)
+            {
+
+                func(*nthk_b(b, i), *nthv_b(b, i));
+            }
+
+            p = q.next;
+        }
+    };
 };
