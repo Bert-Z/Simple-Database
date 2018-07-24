@@ -622,156 +622,445 @@ class bptree
         buf_save_t(b, p);
     };
 
-    int _balance_b(buffer_p b, node &p, off_t left, off_t right){
-
-    };
-
-    int _balance_t(buffer_p b, node &p, off_t left, off_t right);
-    int _remove(node &p, const key_t &k, off_t left, off_t right);
-    void _search(node &p, array_t &arr, const key_t &key, function<bool(const key_t &, const key_t &)> compar);
-
-  public:
-    bptree(const string fname, const string index_fname)
-        : tnode_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(off_t)) - 1), block_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(value_t)) - 1)
+    int _balance_b(buffer_p b, node &p, off_t left, off_t right)
     {
-        file.open(fname, ios::in);
-
-        filename = fname;
-        index_file = index_fname;
-        load_index();
-
-        if (!file)
+        //-1 merge with left node; 0 not merge; 1 merge with right node; 2 delete
+        if (left == invalid_off && right == invalid_off)
         {
-            file.open(fname, ios::out);
-            init();
+            if (p.sz == 0)
+            {
+                free_node(p);
+                head = tail = invalid_off;
+                save_info();
+                save_node(p);
+                buf_save_b(b, p);
+                return 2;
+            }
+            save_info(p);
+            buf_save_b(b, p);
+            return 0;
+        }
+        if (left == invalid_off)
+        {
+            node r = read_node(right);
+            if (r.sz > block_max / 2)
+            {
+                _balance_right_b(b, p, r);
+                return 0;
+            }
+            else
+            {
+                _merge_right_b(b, p, r);
+                return 1;
+            }
+        }
+        if (right == invalid_off)
+        {
+            node l = read_node(left);
+            if (l.sz > block_max / 2)
+            {
+                _balance_left_b(b, p, l);
+                return 0;
+            }
+            else
+            {
+                _merge_left_b(b, p, l);
+                return -1;
+            }
+        }
+
+        node l = read_node(left);
+        node r = read_node(right);
+        if (l.sz > block_max / 2)
+        {
+            _balance_left_b(b, p, l);
+            return 0;
+        }
+        else if (r.sz > block_max / 2)
+        {
+            _balance_right_b(b, p, r);
+            return 0;
         }
         else
         {
-            read_info();
+            _merge_left_b(b, p, l);
+            return -1;
         }
     };
 
-    ~bptree()
+    int _balance_t(buffer_p b, node &p, off_t left, off_t right)
     {
-        save_index();
-        save_info();
-        if (file)
-            file.close();
-    };
-
-    void init()
-    {
-        alloc.clear();
-        save_index();
-        new_node();
-        head = tail = root = invalid_off;
-        file.seekp(0, ios::beg);
-        save_info();
-    };
-
-    void load_index()
-    {
-        alloc.load(index_file);
-    };
-
-    void save_index()
-    {
-        alloc.dump(index_file);
-    };
-
-    int count(const key_t &key)
-    {
-        if (root == invalid_off)
+        //-1 merge with left node; 0 not merge; 1 merge with right node; 2 delete
+        if (left == invalid_off && right == invalid_off)
+        {
+            if (p.sz == 0)
+            {
+                free_node(p);
+                if (p.father == invalid_off)
+                {
+                    head = tail = root = invalid_off;
+                    save_info();
+                }
+            }
+            save_node(p);
+            buf_save_t(b, p);
             return 0;
-        node rn = read_node(root);
-        return _count(rn, key);
-    };
-
-    value_t find(const key_t &key, const value_t &v = value_t())
-    {
-        if (root == invalid_off)
-        {
-            return v;
         }
-        node rn = read_node(root);
-        return _find(rn, key, v);
-    };
-
-    inline bool empty()
-    {
-        return root == invalid_off;
-    };
-
-    void set(const key_t &key, const value_t &v)
-    {
-        node rn = read_node(root);
-        _set(rn, key, v);
-        return;
-    };
-
-    void insert(const key_t &key, const value_t &v)
-    {
-        if (empty())
+        if (left == invalid_off)
         {
-            node p = new_tnode(key);
-            node q = new_block(key, p.pos);
-            root = p.pos;
-            head = tail = q.pos;
-            save_info();
-            _insert_b(q, key, v);
-            _insert_t(p, key, v);
-            return;
+            node r = read_node(right);
+            if (r.sz > tnode_max / 2)
+            {
+                _balance_left_t(b, p, r);
+                return 0;
+            }
+            else
+            {
+                _merge_right_t(b, p, r);
+                return 1;
+            }
         }
-        node rn = read_node(root);
-        _insert(rn, key, v);
+        if (right == invalid_off)
+        {
+            node l = read_node(left);
+            if (l.sz > tnode_max / 2)
+            {
+                _balance_left_t(b, p, l);
+                return 0;
+            }
+            else
+            {
+                _merge_left_t(b, p, l);
+                return -1;
+            }
+        }
+
+        node l = read_node(left), r = read_node(right);
+        if (l.sz > tnode_max / 2)
+        {
+            _balance_left_t(b, p, l);
+            return 0;
+        }
+        else if (r.sz > tnode_max / 2)
+        {
+            _balance_right_t(b, p, r);
+            return 0;
+        }
+        else
+        {
+            _merge_left_t(b, p, l);
+            return -1;
+        }
     };
 
-    void remove(const key_t &key)
+    int _remove(node &p, const key_t &k, off_t left, off_t right)
     {
-        node rn = read_node(root);
-        _remove(rn, key);
-    };
-
-    inline void print_info()
-    {
-        cout << "node_cnt: " << this->sz << " key_size: " << sizeof(key_t) << " value_size: " << sizeof(value_t);
-        cout << "tnode_max: " << tnode_max << " block_max: " << block_max << endl;
-        cout << "file: " << this->filename << " index_file: " << this->index_file << endl;
-    };
-
-    void search(array_t &arr, const key_t &key, std::function<bool(const key_t &, const key_t &)> compar)
-    {
-        if (empty())
-            return;
-
-        node r = read_node(root); // read_node(root) is not a lvalue
-        _search(r, arr, key, compar);
-    };
-
-    void traverse(std::function<void(const key_t &, const value_t &)> func)
-    {
-        off_t p = head;
-
-        node q;
-
+        //-1 merged with left node 0 not merged 1 merged with right node 2 deleted
         buffer_t b;
 
-        while (p != invalid_off)
+        if (p.type)
         {
-
-            q = read_node(p);
-
-            buf_load_b(b, q);
-
-            int i, j;
-
-            for (i = 0; i < q.sz; ++i)
+            buf_load_b(b, p);
+            buf_remove_b(b, k, p);
+            if (p.sz < block_max / 2)
             {
+                return _balance_b(b, p, left, right);
+            }
+            save_node(p);
+            buf_save_b(b, p);
+            return 0;
+        }
 
-                func(*nthk_b(b, i), *nthv_b(b, i));
+        buf_load_t(b, p);
+        size_t x = bsearch_t(b, k, p.sz);
+        if (x >= p.sz || !equal(*nthk_t(b, x), k))
+        {
+            if (x > 0)
+                --x;
+            else
+                return 0;
+        }
+        off_t l = (x > 0) ? (*nthc_t(b, x - 1)) : invalid_off;
+        off_t r = (x < p.sz - 1) ? (*nthc_t(b, x + 1)) : invalid_off;
+        node q = read_node(*nthk_t(b, x));
+        int result = _remove(q, k, l, r);
+        if (result == -1)
+        {
+            for (int i = x; i < p.sz; i++)
+            {
+                *nthk_t(b, i) = *nthk_t(b, i + 1);
+                *nthc_t(b, i) = *nthc_t(b, i + 1);
+            }
+            p.sz--;
+            save_node(p);
+            buf_save_t(b, p);
+        }
+        else if (result == 1)
+        {
+            for (int i = x + 1; i < p.sz - 1; i++)
+            {
+                *nthk_t(b, i) = *nthk_t(b, i + 1);
+                *nthc_t(b, i) = *nthc_t(b, i + 1);
+            }
+            p.sz--;
+            *nthk_t(b, x) = q.key;
+            if (x == 0)
+            {
+                p.key = q.key;
+            }
+            save_node(p);
+            buf_save_t(b, p);
+        }
+        else if (result == 2)
+        {
+            free_node(p);
+            head = tail = root = invalid_off;
+            save_info();
+            return 2;
+        }
+        else
+        {
+            if (r != invalid_off)
+                *nthk_t(b, x + 1) = read_node(r).key;
+            *nthk_t(b, x) = q.key;
+            if (x == 0)
+            {
+                p.key = q.key;
+            }
+            save_node(p);
+            buf_save_t(b, p);
+        }
+
+        if (p.sz < tnode_max / 2)
+        {
+            return _balance_t(b, p, left, right);
+        }
+
+        return 0;
+    };
+
+    void _search(node &p, array_t &arr, const key_t &key, function<bool(const key_t &, const key_t &)> compar)
+    {
+        if (compar(key, p.key))
+        {
+            return;
+        }
+        if (p.type)
+        {
+            buffer_t b;
+            buf_load_b(b, p);
+            node pp = p;
+            size_t x;
+
+            size_t l = 0, r = p.sz, mid;
+            key_t *t;
+            while (l < r)
+            {
+                mid = (l + r) / 2;
+                if (compar(*t, key))
+                {
+                    l = mid + 1;
+                }
+                else
+                {
+                    r = mid;
+                }
             }
 
-            p = q.next;
-        }
+            x = l;
+            if (x == p.sz)
+            {
+                if (pp.next == invalid_off)
+                    return;
+                pp = read_node(pp.next);
+                buf_load_b(b, pp);
+                x = 0;
+            }
+
+            while (!compar(key, *nthk_b(b, x)))
+            {
+                if (!compar(*nthk_b(b, x), key))
+                    arr.push_back(pair_t(*nthk_b(b, x), *nthv_b(b, x)));
+
+                ++x;
+                if (x == pp.sz)
+                {
+                    if (pp.next == invalid_off)
+                        break;
+                    pp = read_node(pp.next);
+                    buf_load_b(b, pp);
+                    x = 0;
+                }
+            }
+
+            buffer_t b;
+            buf_load_t(b, p);
+            size_t x; // = bsearch_t(b, key, p.sz);
+
+            /* binary search */
+            size_t l = 0, r = p.sz - 1, mid;
+            key_t *t;
+            while (l < r)
+            {
+                mid = (l + r + 1) / 2;
+                t = nthk_t(b, mid);
+                if (compar(*t, key))
+                {
+                    l = mid;
+                }
+                else
+                {
+                    r = mid - 1;
+                }
+            }
+            x = l;
+            node cn = read_node(*nthc_t(b, x));
+            //printf("%d %d %d\n", key, *nthk_t(b, x), compar(*nthk_t(b, x), key));
+            return _search(cn, arr, key, compar);
+        };
+
+      public:
+        bptree(const string fname, const string index_fname)
+            : tnode_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(off_t)) - 1), block_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(value_t)) - 1)
+        {
+            file.open(fname, ios::in);
+
+            filename = fname;
+            index_file = index_fname;
+            load_index();
+
+            if (!file)
+            {
+                file.open(fname, ios::out);
+                init();
+            }
+            else
+            {
+                read_info();
+            }
+        };
+
+        ~bptree()
+        {
+            save_index();
+            save_info();
+            if (file)
+                file.close();
+        };
+
+        void init()
+        {
+            alloc.clear();
+            save_index();
+            new_node();
+            head = tail = root = invalid_off;
+            file.seekp(0, ios::beg);
+            save_info();
+        };
+
+        void load_index()
+        {
+            alloc.load(index_file);
+        };
+
+        void save_index()
+        {
+            alloc.dump(index_file);
+        };
+
+        int count(const key_t &key)
+        {
+            if (root == invalid_off)
+                return 0;
+            node rn = read_node(root);
+            return _count(rn, key);
+        };
+
+        value_t find(const key_t &key, const value_t &v = value_t())
+        {
+            if (root == invalid_off)
+            {
+                return v;
+            }
+            node rn = read_node(root);
+            return _find(rn, key, v);
+        };
+
+        inline bool empty()
+        {
+            return root == invalid_off;
+        };
+
+        void set(const key_t &key, const value_t &v)
+        {
+            node rn = read_node(root);
+            _set(rn, key, v);
+            return;
+        };
+
+        void insert(const key_t &key, const value_t &v)
+        {
+            if (empty())
+            {
+                node p = new_tnode(key);
+                node q = new_block(key, p.pos);
+                root = p.pos;
+                head = tail = q.pos;
+                save_info();
+                _insert_b(q, key, v);
+                _insert_t(p, key, v);
+                return;
+            }
+            node rn = read_node(root);
+            _insert(rn, key, v);
+        };
+
+        void remove(const key_t &key)
+        {
+            node rn = read_node(root);
+            _remove(rn, key);
+        };
+
+        inline void print_info()
+        {
+            cout << "node_cnt: " << this->sz << " key_size: " << sizeof(key_t) << " value_size: " << sizeof(value_t);
+            cout << "tnode_max: " << tnode_max << " block_max: " << block_max << endl;
+            cout << "file: " << this->filename << " index_file: " << this->index_file << endl;
+        };
+
+        void search(array_t & arr, const key_t &key, std::function<bool(const key_t &, const key_t &)> compar)
+        {
+            if (empty())
+                return;
+
+            node r = read_node(root); // read_node(root) is not a lvalue
+            _search(r, arr, key, compar);
+        };
+
+        void traverse(std::function<void(const key_t &, const value_t &)> func)
+        {
+            off_t p = head;
+
+            node q;
+
+            buffer_t b;
+
+            while (p != invalid_off)
+            {
+
+                q = read_node(p);
+
+                buf_load_b(b, q);
+
+                int i, j;
+
+                for (i = 0; i < q.sz; ++i)
+                {
+
+                    func(*nthk_b(b, i), *nthv_b(b, i));
+                }
+
+                p = q.next;
+            }
+        };
     };
-};
