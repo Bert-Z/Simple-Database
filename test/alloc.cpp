@@ -74,8 +74,9 @@ void file_alloc::load(const string filename)
     fstream file(filename, ios::in);
     if (!file)
     {
-        cout << "File open wrong!" << endl;
-        return;
+        throw runtime_error("invalid format");
+        // cout << "File open wrong!" << endl;
+        // return;
     }
 
     off_t nstart, nend;
@@ -172,8 +173,9 @@ void file_alloc::free(off_t pos, size_t len)
     {
         if (p->start < pos + len)
         {
-            cout << "Haven't alloc yet!" << endl;
-            return;
+            throw runtime_error("unallocated_space");
+            // cout << "Haven't alloc yet!" << endl;
+            // return;
         }
         q = insert_before(p, pos, pos + len);
     }

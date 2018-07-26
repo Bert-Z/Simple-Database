@@ -1,4 +1,4 @@
-#include "../alloc/alloc.h"
+#include "alloc.h"
 #include <functional>
 #include <vector>
 
@@ -80,7 +80,7 @@ class bptree
     void save_node(const node &p)
     {
         file.seekp(p.pos, ios::beg);
-        file.write(reinterpret_cast<char *>(&p), sizeof(node));
+        file.write(const_cast<char *>(reinterpret_cast<const char *>(&p)), sizeof(node));
         file_reopen();
     };
 
@@ -195,7 +195,7 @@ class bptree
         return l;
     };
 
-    void buf_insert_b(buffer_p b, key_t k, off_t v, node &p)
+    void buf_insert_b(buffer_p b, key_t k, value_t v, node &p)
     {
         size_t i, x = bsearch_b(b, k, p.sz);
         if (x < p.sz && equal(k, *nthk_b(b, x)))
@@ -216,8 +216,9 @@ class bptree
         size_t i, x = bsearch_b(b, k, p.sz);
         if (x == p.sz || !equal(*nthk_b(b, x), k))
         {
-            cout << "Can't find!" << endl;
-            return;
+            throw runtime_error("Not find!");
+            // cout << "Can't find!" << endl;
+            // return;
         }
 
         for (i = x; i < p.sz - 1; ++i)
@@ -233,7 +234,7 @@ class bptree
     {
         size_t len1 = p.sz / 2, len2 = p.sz - len1;
         char *nb = (char *)nthk_b(b, len1);
-        key_t nk = nthk_b(b, len1);
+        key_t nk = *nthk_b(b, len1);
         node q = new_block(nk, p.father, p.pos, p.next);
         q.sz = len2;
         p.sz = len1;
@@ -260,7 +261,7 @@ class bptree
     {
         size_t len1 = p.sz / 2, len2 = p.sz - len1;
         char *nb = (char *)nthk_t(b, len1);
-        key_t nk = nthk_t(b, len1);
+        key_t nk = *nthk_t(b, len1);
         node q = new_tnode(nk, p.father);
         q.sz = len2;
         p.sz = len1;
@@ -342,7 +343,7 @@ class bptree
                 *nthk_t(bu, 0) = k;
                 p.key = k;
                 file.seekp(p.pos + sizeof(node), ios::beg);
-                file.write(reinterpret_cast<char *>(&k), sizeof(key_t));
+                file.write(const_cast<char *>(reinterpret_cast<const char *>(&k)), sizeof(key_t));
                 file_reopen();
             }
         }
@@ -435,8 +436,9 @@ class bptree
             }
             else
             {
-                cout << "not found!" << endl;
-                return;
+                throw runtime_error("Not found!");
+                // cout << "not found!" << endl;
+                // return;
             }
         }
         buffer_t b;
@@ -842,8 +844,6 @@ class bptree
     void _search(node &p, array_t &arr, const key_t &key, std::function<bool(const key_t &, const key_t &)> compar)
     {
 
-        //printf("%d %d %d %d\n",p.key, p.pos, key, p.type);
-
         if (compar(key, p.key))
         {
 
@@ -928,7 +928,9 @@ class bptree
 
   public:
     bptree(const string fname, const string index_fname)
-        : tnode_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(off_t)) - 1), block_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(value_t)) - 1)
+        : tnode_max(5), block_max(5)
+    // tnode_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(off_t)) - 1),
+    //block_max((node_size - sizeof(node)) / (sizeof(key_t) + sizeof(value_t)) - 1)
     {
         file.open(fname, ios::in);
 
@@ -1015,7 +1017,7 @@ class bptree
             head = tail = q.pos;
             save_info();
             _insert_b(q, key, v);
-            _insert_t(p, key, v);
+            _insert_t(p, key, q.pos);
             return;
         }
         node rn = read_node(root);
@@ -1053,7 +1055,7 @@ class bptree
         {
             q = read_node(p);
             buf_load_b(b, q);
-            int i, j;
+            int i;
             for (i = 0; i < q.sz; ++i)
             {
                 func(*nthk_b(b, i), *nthv_b(b, i));

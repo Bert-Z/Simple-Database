@@ -1,0 +1,41 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "intelliSenseMode": "clang-x64",
+            "includePath": [
+                "${workspaceFolder}",
+                "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include/c++",
+                "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include/c++/x86_64-w64-mingw32",
+                "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include/c++/backward",
+                "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include",
+                "F:/llvm/include",
+                "F:/llvm/x86_64-w64-mingw32/include",
+                "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include-fixed"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "__GNUC__=7",
+                "__cdecl=__attribute__((__cdecl__))"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include/c++",
+                    "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include/c++/x86_64-w64-mingw32",
+                    "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include/c++/backward",
+                    "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include",
+                    "F:/llvm/include",
+                    "F:/llvm/x86_64-w64-mingw32/include",
+                    "F:/llvm/lib/gcc/x86_64-w64-mingw32/7.2.0/include-fixed"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}
